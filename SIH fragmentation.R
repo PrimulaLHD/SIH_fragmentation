@@ -35,7 +35,7 @@ sampleV<-seq(102000,Tmax,by=2000)
 removeV<-c("Max betweenness","Min betweenness","Random")
 
 Meta_dyn_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)*3),Dispersal=rep(dispV,each=reps*(numCom-0)*3),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)*3),Patches=NA,Dynamic=rep(factor(c("Species sorting", "Mass effects", "Base growth"),levels = c("Base growth","Species sorting","Mass effects")),each=numCom-0),Proportion=NA)
-SIH_data_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)),Dispersal=rep(dispV,each=reps*(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)),Patches=NA,Regional_SR=NA,Local_SR=NA,Biomass=NA,Regional_CV=NA,Local_CV=NA)
+SIH_data_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)),Dispersal=rep(dispV,each=reps*(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)),Patches=NA,Regional_SR=NA,Local_SR=NA,Biomass=NA,Occupancy=NA,Regional_CV=NA,Local_CV=NA)
 Component_data_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)),Dispersal=rep(dispV,each=reps*(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)),Patches=NA,Component_num=NA,Component_size=NA, Component_range=NA)
 
 
@@ -209,7 +209,8 @@ for(r in 1:reps){
       L_Bmass_sep<-data.frame(t(apply(Abund,3,rowSums)))
       R_Bmass<-apply(Abund,3,sum,na.rm=T)
       R_SR<-colSums(apply(Abund,3,colSums, na.rm=T)>0)
-      L_SR<-colMeans(apply((Abund>0),3,rowSums, na.rm=T))
+      L_SR<-colMeans(apply((Abund>0),3,rowSums),na.rm=T)
+      L_Occ<-colMeans(apply((Abund>0),3,rowSums)>0,na.rm=T)
       
       cv<-function(x){sd(x,na.rm=T)/mean(x,na.rm=T)}
       
@@ -219,7 +220,7 @@ for(r in 1:reps){
       L_CV<-rowMeans(CVdf[,2:31],na.rm=T)
       R_CV<-CVdf$R_Bmass
       
-      SIH_data_means<-data.frame(R_SR=R_SR,L_SR=L_SR,L_Bmass=L_Bmass,Patches=numCom-colMeans(apply(is.na(Abund),3,colSums))) %>%
+      SIH_data_means<-data.frame(R_SR=R_SR,L_SR=L_SR,L_Bmass=L_Bmass,L_Occ=L_Occ,Patches=numCom-colMeans(apply(is.na(Abund),3,colSums))) %>%
         group_by(Patches) %>%
         summarise_each(funs(mean))
       SIH_data_means$R_CV<-R_CV
