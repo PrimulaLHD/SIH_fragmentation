@@ -9,13 +9,12 @@ require(doParallel)
 require(foreach)
 
 #set up parallel####
-detectCores()
-cl<-makeCluster(3)
+cl<-makeCluster(detectCores())
 registerDoParallel(cl)
 getDoParWorkers()
 
 #simulation code####
-reps<-3
+reps<-100
 print.plots<-F # set this to true if you want to see the network as the sim runs - it makes it slower
 
 nSpecies<-9
