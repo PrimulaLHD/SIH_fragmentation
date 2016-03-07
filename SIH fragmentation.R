@@ -6,6 +6,8 @@ require(dplyr)
 require(ggplot2)
 require(tidyr)
 
+options(scipen=9)
+
 reps<-10
 print.plots<-F # set this to true if you want to see the network as the sim runs - it makes it slower
 
@@ -244,19 +246,23 @@ for(r in 1:reps){
 
 save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
 
+
+
 hold<-summarize(group_by(Meta_dyn_reps,Dispersal,Patch_remove,Patches,Dynamic),Mean=mean(Proportion,na.rm=T),Proportion_sd=sd(Proportion,na.rm = T))
 
+hold$Dispersal_text<-paste("Dispersal =",hold$Dispersal)
 
 pdf("./Figures/4. SIH dynamics with fragmentation.pdf",width = 11,height = 8.5)
 ggplot(hold,aes(x=Patches,y=Mean, group=interaction(Dynamic,Patch_remove), color=Dynamic, fill=Dynamic))+
   geom_ribbon(aes(ymin = Mean - Proportion_sd, ymax = Mean + Proportion_sd),alpha=0.3)+
   geom_line(size=1.2)+
-  facet_grid(Patch_remove~Dispersal)+
-  #scale_color_manual(values = c(gg_color_hue(3),"grey50"))+
-  #scale_fill_manual(values=c(gg_color_hue(3),"grey50"))+
+  facet_grid(Patch_remove~Dispersal_text)+
+  scale_color_hue(name="")+
+  scale_fill_hue(name="")+
   xlim(30,0)+
   theme_bw(base_size = 16)+
   scale_y_continuous(breaks=seq(0,1,length=3))+
+  theme(legend.position="top")+
   ylab("Proportion of biomass production")
 dev.off()
 
@@ -269,28 +275,52 @@ SIH_means<-SIH_long %>%
   group_by(Dispersal,Patch_remove,Patches,SIH_attribute) %>%
   summarise(Mean=mean(Value,na.rm=T),value_sd=sd(Value,na.rm=T))
 
+SIH_means$SIH_attribute<-factor(SIH_means$SIH_attribute,levels=c("Regional_SR","Local_SR","Occupancy","Biomass","Regional_CV","Local_CV"),ordered=T)
+SIH_means$cleanNames<-factor(SIH_means$SIH_attribute,levels=c("Regional\nspecies\nrichness","Local\nspecies\nrichness","Local\noccupancy","Local\nbiomass","Regional\nbiomass\nvariability","Local\nbiomass\nvariability"),ordered=T)
+SIH_means$cleanNames<-factor(SIH_means$SIH_attribute,labels=c("Regional\nspecies\nrichness","Local\nspecies\nrichness","Local\noccupancy","Local\nbiomass","Regional\nbiomass\nvariability","Local\nbiomass\nvariability"),ordered=T)
+
+SIH_means$Dispersal_text<-paste("Dispersal =",SIH_means$Dispersal)
+
+mt<-ggplot(SIH_means,aes(x=Patches,y=Mean, group=interaction(Dispersal_text,Patch_remove), color=Patch_remove, fill=Patch_remove))+
+  geom_ribbon(aes(ymin = Mean - value_sd, ymax = Mean + value_sd),alpha=0.2)+
+  geom_line(size=1.2)+
+  facet_grid(cleanNames~Dispersal_text,scale='free_y')+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
+  xlim(30,0)+
+  theme_bw(base_size = 16)+
+  theme(legend.position="top")+
+  ylab("Mean value")
+
+p1 <- mt
+g1 <- ggplotGrob(p1)
+
+p2 <- mt + coord_cartesian(ylim = c(0,1))
+g2 <- ggplotGrob(p2)
+
+# ----------------------------------------------------------
+# Replace the upper panels and upper axis of p1 with that of p2
+# Tweak panels of second plot - the upper panels
+library(gtable)
+g1[["grobs"]][[15]] <- g2[["grobs"]][[15]]
+g1[["grobs"]][[16]] <- g2[["grobs"]][[16]]
+g1[["grobs"]][[21]] <- g2[["grobs"]][[21]]
+g1[["grobs"]][[22]] <- g2[["grobs"]][[22]]
+g1[["grobs"]][[27]] <- g2[["grobs"]][[27]]
+g1[["grobs"]][[28]] <- g2[["grobs"]][[28]]
+
+#Tweak axis
+g1[["grobs"]][[9]] <- g2[["grobs"]][[9]]
+g1[["grobs"]][[10]] <- g2[["grobs"]][[10]]
+
+
+grid.newpage()
 
 pdf("./Figures/5. Diversity and biomass with fragmentation.pdf",width = 11,height = 8.5)
-ggplot(SIH_means,aes(x=Patches,y=Mean, group=interaction(Dispersal,Patch_remove), color=Patch_remove, fill=Patch_remove))+
-  geom_ribbon(aes(ymin = Mean - value_sd, ymax = Mean + value_sd),alpha=0.3)+
-  geom_line(size=1.2)+
-  facet_grid(SIH_attribute~Dispersal,scale='free')+
-  scale_color_brewer(type = "qual",palette = "Dark2")+
-  scale_fill_brewer(type = "qual",palette = "Dark2")+
-  xlim(30,0)+
-  theme_bw(base_size = 16)+
-  ylab("Value")
+grid.draw(g1)
 dev.off()
 
-ggplot(SIH_means,aes(x=Patches,y=Mean, group=interaction(Dispersal,Patch_remove), color=Patch_remove, fill=Patch_remove))+
-  #geom_ribbon(aes(ymin = Mean - value_sd, ymax = Mean + value_sd),alpha=0.3)+
-  geom_line(size=1.2)+
-  facet_grid(SIH_attribute~Dispersal,scale='free')+
-  scale_color_brewer(type = "qual",palette = "Dark2")+
-  scale_fill_brewer(type = "qual",palette = "Dark2")+
-  xlim(30,0)+
-  theme_bw(base_size = 16)+
-  ylab("Value")
+
 
 
 Network_components<-gather(Component_data_reps,key = Component_attribute,value = Value,Component_num:Component_range)
@@ -300,14 +330,25 @@ Component_means<-Network_components %>%
   group_by(Patch_remove,Patches,Component_attribute) %>%
   summarise(Mean=mean(Value,na.rm=T),value_sd=sd(Value,na.rm=T))
 
-pdf("./Figures/3. Network components with fragmentation.pdf",width = 8,height = 8.5)
+Component_means$Min_sd<-Component_means$Mean-Component_means$value_sd
+Component_means$Min_sd[Component_means$Min_sd<0]<-0
+Component_means$Max_sd<-Component_means$Mean+Component_means$value_sd
+Component_means$Max_sd[Component_means$Max_sd>30]<-30
+Component_means$Max_sd[Component_means$Component_attribute=="Component_range" & Component_means$Max_sd>1]<-1
+
+Component_means$cleanNames<-factor(Component_means$Component_attribute,levels=c("Component number","Component size","Component range"))
+Component_means$cleanNames<-factor(Component_means$Component_attribute,labels=c("Component number","Component size","Component range"))
+
+
+pdf("./Figures/3. Network components with fragmentation.pdf",width = 6,height = 8.5)
 ggplot(Component_means,aes(x=Patches,y=Mean, group=Patch_remove, color=Patch_remove, fill=Patch_remove))+
-  geom_ribbon(aes(ymin = Mean - value_sd, ymax = Mean + value_sd),alpha=0.3)+
+  geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.3)+
   geom_line(size=1.2)+
-  facet_grid(Component_attribute~.,scale='free')+
-  scale_color_brewer(type = "qual",palette = 2)+
-  scale_fill_brewer(type = "qual",palette = 2)+
+  facet_grid(cleanNames~.,scale='free')+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
   xlim(30,0)+
   theme_bw(base_size = 16)+
-  ylab("Value")
+  ylab("Mean value")+
+  theme(legend.position="top")
 dev.off()
