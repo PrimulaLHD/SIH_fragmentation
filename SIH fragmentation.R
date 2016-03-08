@@ -248,17 +248,24 @@ save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
 
 
 
-hold<-summarize(group_by(Meta_dyn_reps,Dispersal,Patch_remove,Patches,Dynamic),Mean=mean(Proportion,na.rm=T),Proportion_sd=sd(Proportion,na.rm = T))
+hold<-Meta_dyn_reps%>%
+  group_by(Dispersal,Patch_remove,Patches,Dynamic)%>%
+  summarise(Mean=mean(Proportion,na.rm=T),Proportion_sd=sd(Proportion,na.rm = T))%>%
+  mutate(Max_sd=Mean+Proportion_sd,Min_sd=Mean-Proportion_sd)%>%
+  mutate(Max_sd=replace(Max_sd,Max_sd>1,1),Min_sd=replace(Min_sd,Min_sd<0,0))
+  
 
 hold$Dispersal_text<-paste("Dispersal =",hold$Dispersal)
 
+
+require(RColorBrewer)
 pdf("./Figures/4. SIH dynamics with fragmentation.pdf",width = 11,height = 8.5)
 ggplot(hold,aes(x=Patches,y=Mean, group=interaction(Dynamic,Patch_remove), color=Dynamic, fill=Dynamic))+
-  geom_ribbon(aes(ymin = Mean - Proportion_sd, ymax = Mean + Proportion_sd),alpha=0.3)+
+  geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.2)+
   geom_line(size=1.2)+
   facet_grid(Patch_remove~Dispersal_text)+
-  scale_color_hue(name="")+
-  scale_fill_hue(name="")+
+  scale_color_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="")+
+  scale_fill_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="")+
   xlim(30,0)+
   theme_bw(base_size = 16)+
   scale_y_continuous(breaks=seq(0,1,length=3))+
