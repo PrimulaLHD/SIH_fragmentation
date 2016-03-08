@@ -155,13 +155,15 @@ Meta_dynamics_means<-Meta_dynamics%>%
 
 require(ggplot2)
 require(dplyr)
+require(RColorBrewer)
+
 pdf("./Figures/2. Metacommunity dynamics.pdf",width = 8,height = 6)
 ggplot(Meta_dynamics_means,aes(x=Dispersal,y=Mean,group=Dynamic_clean,color=Dynamic_clean, fill=Dynamic_clean))+
   geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.3)+
   geom_line(size=1.5)+
   theme_bw(base_size = 15)+
-  scale_color_hue(name="")+
-  scale_fill_hue(name="")+
+  scale_color_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="")+
+  scale_fill_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="")+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
   scale_x_log10(breaks=c(0.0001,0.001,0.01,0.1,1),labels=c("0.0001","0.001","0.01","0.1","1"))+
   scale_y_continuous(breaks=seq(0,1,length=5))+
