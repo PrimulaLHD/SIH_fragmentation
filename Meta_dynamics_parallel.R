@@ -35,7 +35,7 @@ SIH_function<-function(dispersal=0.005,species=9,patches=30,rand=50){
   numEdgesRewired<-rand/100*(patches*2) 
   numLinks<-patches*2
   success<-FALSE
-  while(!success){unweightedgraph<- if(rand==100) create_random_net(patches, numLinks) else rewire(patches,numLinks,numEdgesRewired)
+  while(!success){unweightedgraph<- if(rand==100) {create_random_net(patches, numLinks)} else {rewire(patches,numLinks,numEdgesRewired)}
   success<-length(V(unweightedgraph))==30}
   weightedgraph<-addweights(unweightedgraph,numLinks,patches)
   
@@ -120,7 +120,7 @@ dispV<-c(vect,vect*10,vect*100,vect*1000,1)
 dispV<-dispV[-c(17:20)]
 
 species<-9
-reps<-20
+reps<-100
 Meta_dyn.df<-data.frame(Species_sorting=NA,Mass_effects=NA,Base_growth=NA,Dispersal=dispV,Rep=rep(1:reps,each=length(dispV)))
 
 #make parallel####
