@@ -141,27 +141,32 @@ for(r in 1:reps){
     Species_data[Species_data$Dispersal==dispV[i],1:2]<-SIH_data[["Spec_data",i]]
   }}
 
-Meta_dynamics<-gather(SIH_results[,-c(1:4)],key = Dynamic,value=Proportion_of_production,Species_sorting:Base_growth)
+Meta_dynamics<-gather(Meta_dyn.df,key = Dynamic,value=Proportion_of_production,Species_sorting:Base_growth)
 Meta_dynamics$Dynamic<-factor(Meta_dynamics$Dynamic,levels = c("Base_growth","Species_sorting","Mass_effects"),ordered = T)
+Meta_dynamics$Dynamic_clean<-factor(Meta_dynamics$Dynamic,levels = c("Base growth","Species sorting","Mass effects"),ordered=T)
+Meta_dynamics$Dynamic_clean<-factor(Meta_dynamics$Dynamic,labels = c("Base growth","Species sorting","Mass effects"),ordered=T)
+
+
 Meta_dynamics_means<-Meta_dynamics%>%
-  filter(Scale == "Local")%>%
-  group_by(Dispersal,Dynamic)%>%
-  summarise(Mean=mean(Proportion_of_production), SD=sd(Proportion_of_production))
+  group_by(Dispersal,Dynamic_clean)%>%
+  summarise(Mean=mean(Proportion_of_production), SD=sd(Proportion_of_production))%>%
+  mutate(Max_sd=Mean+SD,Min_sd=Mean-SD)%>%
+  mutate(Max_sd=replace(Max_sd,Max_sd>1,1),Min_sd=replace(Min_sd,Min_sd<0,0))
 
-
-setwd("~/Dropbox/SIH/Ecography")
 require(ggplot2)
 require(dplyr)
-pdf(file ="Dynamics at 3 dispersa rates - 20 reps.pdf",width = 8,height = 6)
-ggplot(Meta_dynamics_means,aes(x=Dispersal,y=Mean,group=Dynamic,color=Dynamic, fill=Dynamic))+
-  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD),alpha=0.3)+
+pdf("./Figures/2. Metacommunity dynamics.pdf",width = 8,height = 6)
+ggplot(Meta_dynamics_means,aes(x=Dispersal,y=Mean,group=Dynamic_clean,color=Dynamic_clean, fill=Dynamic_clean))+
+  geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.3)+
   geom_line(size=1.5)+
-  geom_point()+
   theme_bw(base_size = 15)+
+  scale_color_hue(name="")+
+  scale_fill_hue(name="")+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
   scale_x_log10(breaks=c(0.0001,0.001,0.01,0.1,1),labels=c("0.0001","0.001","0.01","0.1","1"))+
   scale_y_continuous(breaks=seq(0,1,length=5))+
   ylab("Propotion of biomass production")+
+  theme(legend.justification=c(1,0),legend.position=c(1,0.5))+
   geom_vline(xintercept = c(0.0005,0.005,0.015), linetype=2)
 dev.off()
 
