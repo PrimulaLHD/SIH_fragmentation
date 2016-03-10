@@ -280,7 +280,10 @@ SIH_long<-gather(SIH_data_reps,key = SIH_attribute,value = Value,Regional_SR:Loc
 SIH_means<-SIH_long %>%
   select(Rep,Dispersal,Patch_remove,Patches,SIH_attribute,Value) %>%
   group_by(Dispersal,Patch_remove,Patches,SIH_attribute) %>%
-  summarise(Mean=mean(Value,na.rm=T),value_sd=sd(Value,na.rm=T))
+  summarise(Mean=mean(Value,na.rm=T),value_sd=sd(Value,na.rm=T),Max=max(Value,na.rm=T),Min=min(Value,na.rm=T))%>%
+  group_by(Dispersal,Patch_remove,Patches,SIH_attribute) %>%
+  mutate(Max_sd=Mean+value_sd,Min_sd=Mean-value_sd)%>%
+  mutate(Max_sd=replace(Max_sd,Max_sd>Max,Max),Min_sd=replace(Min_sd,Min_sd<Min,Min))
 
 SIH_means$SIH_attribute<-factor(SIH_means$SIH_attribute,levels=c("Regional_SR","Local_SR","Occupancy","Biomass","Regional_CV","Local_CV"),ordered=T)
 SIH_means$cleanNames<-factor(SIH_means$SIH_attribute,levels=c("Regional\nspecies\nrichness","Local\nspecies\nrichness","Local\noccupancy","Local\nbiomass","Regional\nbiomass\nvariability","Local\nbiomass\nvariability"),ordered=T)
@@ -289,7 +292,7 @@ SIH_means$cleanNames<-factor(SIH_means$SIH_attribute,labels=c("Regional\nspecies
 SIH_means$Dispersal_text<-paste("Dispersal =",SIH_means$Dispersal)
 
 mt<-ggplot(SIH_means,aes(x=Patches,y=Mean, group=interaction(Dispersal_text,Patch_remove), color=Patch_remove, fill=Patch_remove))+
-  geom_ribbon(aes(ymin = Mean - value_sd, ymax = Mean + value_sd),alpha=0.2)+
+  geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.2)+
   geom_line(size=1.2)+
   facet_grid(cleanNames~Dispersal_text,scale='free_y')+
   scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
