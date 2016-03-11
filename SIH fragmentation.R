@@ -258,7 +258,7 @@ hold$Dispersal_text<-paste("Dispersal =",hold$Dispersal)
 
 
 require(RColorBrewer)
-pdf("./Figures/4. SIH dynamics with fragmentation.pdf",width = 11,height = 8.5)
+pdf("./Figures/6. SIH dynamics with fragmentation.pdf",width = 11,height = 8.5)
 ggplot(hold,aes(x=Patches,y=Mean, group=interaction(Dynamic,Patch_remove), color=Dynamic, fill=Dynamic))+
   geom_ribbon(aes(ymin = Min_sd, ymax = Max_sd),alpha=0.2)+
   geom_line(size=1.2)+
@@ -279,13 +279,14 @@ SIH_long<-gather(SIH_data_reps,key = SIH_attribute,value = Value,Regional_SR:Loc
 
 BEF_curve.df<-SIH_data_reps%>%
   group_by(Patch_remove,Dispersal,Patches)%>%
-  summarise(Local_SR=mean(Local_SR),Biomass=mean(Biomass))
+  summarise(SD_max=mean(Biomass)+sd(Biomass),SD_min=mean(Biomass)-sd(Biomass),Local_SR=mean(Local_SR),Biomass=mean(Biomass))
 
 BEF_curve.df$Patch_remove<-factor(BEF_curve.df$Patch_remove,levels = c("Max betweenness","Random","Min betweenness"),ordered = T)
 BEF_curve.df$Dispersal_text<-paste("Dispersal =",BEF_curve.df$Dispersal)
 
-pdf("./Figures/6. BEF curves.pdf", width = 11,height = 5)
-ggplot(BEF_curve.df,aes(x=Local_SR,y=Biomass, color=Patch_remove))+
+pdf("./Figures/5. BEF curves.pdf", width = 11,height = 5)
+ggplot(BEF_curve.df,aes(x=Local_SR,y=Biomass, color=Patch_remove, fill=Patch_remove))+
+  #geom_ribbon(aes(ymin = SD_min, ymax = SD_max),alpha=0.2)+
   geom_path(size=1.2)+
   facet_grid(.~Dispersal_text)+
   scale_shape_manual(values = c(24,19,25),name="")+
@@ -299,6 +300,22 @@ ggplot(BEF_curve.df,aes(x=Local_SR,y=Biomass, color=Patch_remove))+
   removeGrid()
 dev.off()
 
+
+pdf("./Figures/5. BEF curves - error bands.pdf", width = 11,height = 5)
+ggplot(BEF_curve.df,aes(x=Local_SR,y=Biomass, color=Patch_remove, fill=Patch_remove))+
+  geom_ribbon(aes(ymin = SD_min, ymax = SD_max),alpha=0.2)+
+  geom_path(size=1.2)+
+  facet_grid(.~Dispersal_text)+
+  scale_shape_manual(values = c(24,19,25),name="")+
+  scale_color_manual(values = c("red","black","dodgerblue1"),name="")+
+  scale_fill_manual(values = c("red","black","dodgerblue1"),name="")+
+  theme_bw(base_size = 16)+
+  theme(legend.position="top")+
+  geom_point(data=filter(BEF_curve.df,Patches==20),aes(x=Local_SR,y=Biomass, color=Patch_remove,shape=Patch_remove,fill=Patch_remove),size=3)+
+  xlab("Local species richness")+
+  ylab("Local biomass")+
+  removeGrid()
+dev.off()
 
 SIH_means<-SIH_long %>%
   select(Rep,Dispersal,Patch_remove,Patches,SIH_attribute,Value) %>%
@@ -351,7 +368,7 @@ g1[["grobs"]][[10]] <- g2[["grobs"]][[10]]
 
 grid.newpage()
 
-pdf("./Figures/5. Diversity and biomass with fragmentation.pdf",width = 11,height = 8.5)
+pdf("./Figures/4. Diversity and biomass with fragmentation.pdf",width = 11,height = 8.5)
 grid.draw(g1)
 dev.off()
 
