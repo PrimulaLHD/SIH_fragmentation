@@ -8,9 +8,7 @@ source("./Functions/maketriangles.r")
 numCom<-30
 numLinks<-numCom*2
 
-colfunc <- colorRampPalette(c("#ffffb2", "#e31a1c"))
-colfunc <- colorRampPalette(c("white"
-                              , "black"))
+colfunc <- colorRampPalette(c("white", "green4"))
 GrayColV <- colfunc(16)
 GrayColV<-c(GrayColV,rev(GrayColV[2:15]))
 GrayColV<-GrayColV[c(9:30,1:8)]
