@@ -277,6 +277,16 @@ dev.off()
 
 SIH_long<-gather(SIH_data_reps,key = SIH_attribute,value = Value,Regional_SR:Local_CV)
 
+pdf("./Figures/6. BEF curves.pdf", width = 11,height = 4)
+ggplot(summarise(group_by(SIH_data_reps,Patch_remove,Dispersal,Patches),Local_SR=mean(Local_SR),Biomass=mean(Biomass)),aes(x=Local_SR,y=Biomass, color=Patch_remove))+
+  geom_path(size=1.2)+
+  facet_grid(.~Dispersal)+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  theme(legend.position="top")+
+  theme_bw(base_size = 16)
+dev.off()
+
+
 SIH_means<-SIH_long %>%
   select(Rep,Dispersal,Patch_remove,Patches,SIH_attribute,Value) %>%
   group_by(Dispersal,Patch_remove,Patches,SIH_attribute) %>%
@@ -362,3 +372,4 @@ ggplot(Component_means,aes(x=Patches,y=Mean, group=Patch_remove, color=Patch_rem
   ylab("Mean value")+
   theme(legend.position="top")
 dev.off()
+
