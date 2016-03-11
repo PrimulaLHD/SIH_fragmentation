@@ -5,6 +5,7 @@ require(igraph)
 require(dplyr)
 require(ggplot2)
 require(tidyr)
+require(ggExtra)
 
 options(scipen=9)
 
@@ -246,8 +247,6 @@ for(r in 1:reps){
 
 save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
 
-
-
 hold<-Meta_dyn_reps%>%
   group_by(Dispersal,Patch_remove,Patches,Dynamic)%>%
   summarise(Mean=mean(Proportion,na.rm=T),Proportion_sd=sd(Proportion,na.rm = T))%>%
@@ -270,20 +269,34 @@ ggplot(hold,aes(x=Patches,y=Mean, group=interaction(Dynamic,Patch_remove), color
   theme_bw(base_size = 16)+
   scale_y_continuous(breaks=seq(0,1,length=3))+
   theme(legend.position="top")+
-  ylab("Proportion of biomass production")
+  ylab("Proportion of biomass production")+
+  removeGrid()
 dev.off()
 
 
 
 SIH_long<-gather(SIH_data_reps,key = SIH_attribute,value = Value,Regional_SR:Local_CV)
 
-pdf("./Figures/6. BEF curves.pdf", width = 11,height = 4)
-ggplot(summarise(group_by(SIH_data_reps,Patch_remove,Dispersal,Patches),Local_SR=mean(Local_SR),Biomass=mean(Biomass)),aes(x=Local_SR,y=Biomass, color=Patch_remove))+
+BEF_curve.df<-SIH_data_reps%>%
+  group_by(Patch_remove,Dispersal,Patches)%>%
+  summarise(Local_SR=mean(Local_SR),Biomass=mean(Biomass))
+
+BEF_curve.df$Patch_remove<-factor(BEF_curve.df$Patch_remove,levels = c("Max betweenness","Random","Min betweenness"),ordered = T)
+BEF_curve.df$Dispersal_text<-paste("Dispersal =",BEF_curve.df$Dispersal)
+
+pdf("./Figures/6. BEF curves.pdf", width = 11,height = 5)
+ggplot(BEF_curve.df,aes(x=Local_SR,y=Biomass, color=Patch_remove))+
   geom_path(size=1.2)+
-  facet_grid(.~Dispersal)+
-  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  facet_grid(.~Dispersal_text)+
+  scale_shape_manual(values = c(24,19,25),name="")+
+  scale_color_manual(values = c("red","black","dodgerblue1"),name="")+
+  scale_fill_manual(values = c("red","black","dodgerblue1"),name="")+
+  theme_bw(base_size = 16)+
   theme(legend.position="top")+
-  theme_bw(base_size = 16)
+  geom_point(data=filter(BEF_curve.df,Patches==20),aes(x=Local_SR,y=Biomass, color=Patch_remove,shape=Patch_remove,fill=Patch_remove),size=3)+
+  xlab("Local species richness")+
+  ylab("Local biomass")+
+  removeGrid()
 dev.off()
 
 
@@ -310,7 +323,9 @@ mt<-ggplot(SIH_means,aes(x=Patches,y=Mean, group=interaction(Dispersal_text,Patc
   xlim(30,0)+
   theme_bw(base_size = 16)+
   theme(legend.position="top")+
-  ylab("Mean value")
+  ylab("Mean value")+
+  removeGrid()
+
 
 p1 <- mt
 g1 <- ggplotGrob(p1)
@@ -370,6 +385,7 @@ ggplot(Component_means,aes(x=Patches,y=Mean, group=Patch_remove, color=Patch_rem
   xlim(30,0)+
   theme_bw(base_size = 16)+
   ylab("Mean value")+
-  theme(legend.position="top")
+  theme(legend.position="top")+
+  removeGrid()
 dev.off()
 
