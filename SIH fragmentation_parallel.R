@@ -194,7 +194,7 @@ SIH_frag<-function(){
         
         if(max(TS==seq(100000+drop_length,Tmax-1,by=drop_length))){
           if(j==1){btw<-betweenness(weightedgraph)
-          if(sum(btw==0)){
+          if(sum(btw)==0){
             patch.delete<-order(degree(weightedgraph),decreasing = T)[1]
           } else{patch.delete<-order(btw,decreasing = T)[1] }
           } else{
