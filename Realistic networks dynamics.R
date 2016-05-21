@@ -160,13 +160,36 @@ getDoParWorkers()
 
 Sim_data_parallel<-foreach(r = 1:reps,.packages=c("igraph","dplyr","tidyr")) %dopar% SIH_function(species = 10,numCom = 100, dispV=dispV)
 
-for(r in 1:reps){
-  print(r)
-  for(i in 1:length(dispV)){
-    Meta_dyn.df[Meta_dyn.df$Dispersal==dispV[i] & Meta_dyn.df$Rep==r,1:3]<-colMeans(Sim_data_parallel[[r]]["Meta_dyn",i]$Meta_dyn,na.rm=T)
-  }}
+Sim_data<-do.call("rbind",Sim_data_parallel)
 
+Sim_data_long<-gather(Sim_data,key = Response,value = Value,L_SR:Mass_effects)
+
+SIH_means<-Sim_data_long%>%
+  group_by(Dispersal,Response)%>%
+  summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T)))
 
 stopCluster(cl)
 
-save(Meta_dyn.df,file="Meta_dynamics.RData")
+save(SIH_means,file="Meta_dynamics.RData")
+
+Meta_dyn<-filter(SIH_means,Response == "Base_growth" | 
+         Response == "Species_sorting" |
+         Response == "Mass_effects")
+
+Meta_dyn$Response<-factor(Meta_dyn$Response,levels =c("Base_growth","Species_sorting", "Mass_effects"),ordered = T)
+
+
+library(RColorBrewer)
+ggplot(Meta_dyn,aes(x=Dispersal,y=Mean,color=Response, fill=Response))+
+  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.3,color=NA)+
+  geom_line(size=1.5)+
+  theme_bw(base_size = 15)+
+  scale_color_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
+  scale_fill_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  scale_x_log10(breaks=c(0.0001,0.001,0.01,0.1,1),labels=c("0.0001","0.001","0.01","0.1","1"))+
+  scale_y_continuous(breaks=seq(0,1,length=5))+
+  ylab("Propotion of biomass production")+
+  theme(legend.justification=c(1,0),legend.position=c(1,0.5))+
+  geom_vline(xintercept = c(0.0005,0.005,0.015), linetype=2)
+ggsave("2. Metacommunity dynamics.pdf",width = 8,height = 6)
