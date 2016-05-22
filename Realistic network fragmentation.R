@@ -11,10 +11,10 @@ registerDoParallel(cl)
 getDoParWorkers()
 
 #simulation code####
-reps<-5
+reps<-100
 print.plots<-T # set this to true if you want to see the network as the sim runs - it makes it slower
 
-nSpecies<-30
+nSpecies<-10
 numCom<-100
 dispV<-c(0.0005,0.005,0.015)
 
@@ -27,7 +27,7 @@ Ext<- 0.1 #extinction Threshold
 ePeriod<-40000#40000 #period of env sinusoidal fluctuations
 eAMP<-1 #amplitude of envrionment sinusoidal fluctuations
 
-drop_length<-ePeriod/4
+drop_length<-ePeriod
 
 Tmax<-100000+drop_length*(numCom-0) #number of time steps in Sim
 Tdata<- seq(1, Tmax)
@@ -35,51 +35,47 @@ DT<- 0.08 # % size of discrete "time steps"
 sampleV<-seq(102000,Tmax,by=2000)
 removeV<-c("Max betweenness","Min betweenness","Random")
 
-Meta_dyn_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)*3),Dispersal=rep(dispV,each=reps*(numCom-0)*3),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)*3),Patches=NA,Dynamic=rep(factor(c("Species sorting", "Mass effects", "Base growth"),levels = c("Base growth","Species sorting","Mass effects")),each=numCom-0),Proportion=NA)
-SIH_data_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)),Dispersal=rep(dispV,each=reps*(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)),Patches=NA,Regional_SR=NA,Local_SR=NA,Biomass=NA,Occupancy=NA,Regional_CV=NA,Local_CV=NA)
-Component_data_reps<-data.frame(Rep=rep(1:reps,each=(numCom-0)),Dispersal=rep(dispV,each=reps*(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*reps*(numCom-0)),Patches=NA,Component_num=NA,Component_size=NA, Component_range=NA)
+eOptimum<-1-seq(0,eAMP, by=eAMP/(nSpecies-1)) #species environmental optima
 
 #the simulation function####  
 SIH_frag<-function(){
-  Meta_dyn_r1<-data.frame(Rep=r,Dispersal=rep(dispV,each=(numCom-0)*3),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*(numCom-0)*3),Patches=NA,Dynamic=rep(factor(c("Species sorting", "Mass effects", "Base growth"),levels = c("Base growth","Species sorting","Mass effects")),each=numCom-0),Proportion=NA)
-  SIH_data_r1<-data.frame(Rep=r,Dispersal=rep(dispV,each=(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*(numCom-0)),Patches=NA,Regional_SR=NA,Local_SR=NA,Biomass=NA,Occupancy=NA,Regional_CV=NA,Local_CV=NA)
-  Component_data_r1<-data.frame(Rep=r,Dispersal=rep(dispV,each=(numCom-0)),Patch_remove=rep(factor(removeV,levels = c("Min betweenness","Random","Max betweenness"),ordered = T),each=length(dispV)*(numCom-0)),Patches=NA,Component_num=NA,Component_size=NA, Component_range=NA)
+  #network####
+  success<-F
+  while(!success){
+    landscape<-round(data.frame(x = runif(numCom, min = 1, max = 1000), y = runif(numCom, min = 1, max = 1000)))
+    distance_mat1<-as.matrix(dist(landscape,method = "euclidean",diag = T,upper=T))
+    
+    distance_mat<-1*(distance_mat1<200)
+    diag(distance_mat)<-0
+    connections<-distance_mat
+    distance_mat[upper.tri(distance_mat)]<-0
+    
+    graph<-as.undirected(graph.adjacency(distance_mat))
+    graph<-set.vertex.attribute(graph,"x coordinate",value=landscape$x)
+    graph<-set.vertex.attribute(graph,"y coordinate",value=landscape$y)
+    graph<-set.edge.attribute(graph,"weight",value=distance_mat1[cbind(as.numeric(get.edgelist(graph)[,1]),  as.numeric(get.edgelist(graph)[,2]))])
+    
+    
+    if(components(graph)$no == 1){success<-T}}
+  
+  envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*1+1+(landscape$y)*2*pi/1000)+1)
+  
+  plot.igraph(graph,layout=as.matrix(landscape), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
+  
   
   for(i in 1:length(dispV)){
     disp<-dispV[i]
     
-    success<-F
-    while(!success){
-      landscape<-round(data.frame(x = runif(numCom, min = 1, max = 1000), y = runif(numCom, min = 1, max = 1000)))
-      distance_mat1<-as.matrix(dist(landscape,method = "euclidean",diag = T,upper=T))
-      
-      dist.lower<-dist(landscape)
-      weights<-dist.lower[dist.lower<200 & dist.lower>0]
-      distance_mat<-1*(distance_mat1<200)
-      diag(distance_mat)<-0
-      connections<-distance_mat
-      distance_mat[upper.tri(distance_mat)]<-0
-      
-      graph<-as.undirected(graph.adjacency(distance_mat))
-      graph<-set.vertex.attribute(graph,"x coordinate",value=landscape$x)
-      graph<-set.vertex.attribute(graph,"y coordinate",value=landscape$y)
-      graph<-set.edge.attribute(graph,"weight",value=weights)
-      
-      if(components(graph)$no == 1){success<-T}}
     
-    colV<-heat.colors(100)[round(landscape$y/10)]
-    plot.igraph(graph,layout=as.matrix(landscape), vertex.color=colV, vertex.size=10)
-    
-    
-    #vectors####
-    eOptimum<-1-seq(0,eAMP, by=eAMP/(nSpecies-1)) #species environmental optima
-    
+    #dispersal conditions####
     calc.immigration <- function(N,a,dispersal_matrix) dispersal_matrix%*%N*rep(a,each=length(R))
     
     for(j in 1:3){
       landscape_run<-landscape
       graph_run<-graph
-      dispersal_matrix <- apply(connections, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
+      d<-shortest.paths(graph_run, mode="all", weights=NULL, algorithm="automatic")
+      d_exp<-exp(-0.002*d) - diag(nrow(d))  #dispersal kernel function of the d matrix
+      dispersal_matrix <- apply(d_exp, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
       
       Prod<-array(NA,dim=c(numCom,nSpecies,length(sampleV)))
       Abund<-Prod
@@ -211,63 +207,76 @@ SIH_frag<-function(){
           graph_run<-delete.vertices(graph_run,patch.delete)
           landscape_run<-landscape_run[-patch.delete,]
           
-          dispersal_matrix <- apply(get.adjacency(graph_run,sparse=F), 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
+          d<-shortest.paths(graph_run, mode="all", weights=NULL, algorithm="automatic")
+          d_exp<-exp(-0.002*d) - diag(nrow(d))  #dispersal kernel function of the d matrix
+          dispersal_matrix <- apply(d_exp, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
           dispersal_matrix[is.nan(dispersal_matrix)]<-0
           
           envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*TS+1+(landscape_run$y)*2*pi/1000)+1)
           if(print.plots==T){
             plot.igraph(graph_run,layout=as.matrix(landscape_run), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
-            }
-            N<-N[-patch.delete,]
-            R<-R[-patch.delete]
-            N0<-N0[-patch.delete,]
-            R0<-R0[-patch.delete]
-          }  
-        } 
-        
-        L_Bmass<-colMeans(apply(Abund,3,rowSums),na.rm=T)
-        L_Bmass_sep<-data.frame(t(apply(Abund,3,rowSums)))
-        R_Bmass<-apply(Abund,3,sum,na.rm=T)
-        R_SR<-colSums(apply(Abund,3,colSums, na.rm=T)>0)
-        L_SR<-colMeans(apply((Abund>0),3,rowSums),na.rm=T)
-        L_Occ<-colMeans(apply((Abund>0),3,rowSums)>0,na.rm=T)
-        
-        cv<-function(x){sd(x,na.rm=T)/mean(x,na.rm=T)}
-        
-        CVdf<-cbind(L_Bmass_sep,data.frame(R_Bmass=R_Bmass,Patches=rep(numCom:1,each=drop_length/2000))) %>%
-          group_by(Patches) %>%
-          summarise_each(funs(cv))
-        L_CV<-rowMeans(CVdf[,2:31],na.rm=T)
-        R_CV<-CVdf$R_Bmass
-        
-        SIH_data_means<-data.frame(R_SR=R_SR,L_SR=L_SR,L_Bmass=L_Bmass,L_Occ=L_Occ,Patches=numCom-colMeans(apply(is.na(Abund),3,colSums))) %>%
-          group_by(Patches) %>%
-          summarise_each(funs(mean))
-        SIH_data_means$R_CV<-R_CV
-        SIH_data_means$L_CV<-L_CV
-        
-        Component_data_means<-data.frame(Patches=numCom-colMeans(apply(is.na(Abund),3,colSums)),Component_num=Components$Number_components,Component_size=Components$Component_size,Component_range=Components$Component_envt_range)%>%
-          group_by(Patches) %>%
-          summarise_each(funs(mean))
-        
-        SIH_data_r1[SIH_data_r1$Dispersal==dispV[i] & SIH_data_r1$Patch_remove==removeV[j],-c(1:3)]<-SIH_data_means
-        Component_data_r1[SIH_data_r1$Dispersal==dispV[i] & SIH_data_r1$Patch_remove==removeV[j],-c(1:3)]<-Component_data_means
-        
-        mean.df<-summarise(group_by(Meta_dyn,Patches),Species_sorting=mean(Species_sorting,na.rm=T),Mass_effects=mean(Mass_effects,na.rm=T),Base_growth=mean(Base_growth,na.rm=T))
-        Meta.dyn.long<-gather(mean.df,key = Dynamic,value=Proportion,-Patches)
-        
-        Meta_dyn_r1[Meta_dyn_r1$Dispersal==dispV[i] & Meta_dyn_r1$Patch_remove==removeV[j],c(4,6)]<-Meta.dyn.long[,-2]
-      }}
-    return(list(Meta_dyn_r1,SIH_data_r1,Component_data_r1))
-  }
-  
-  #run simulation function in parallel
-  Sim_data_parallel<-foreach(r = 1:reps,.packages=c("igraph","dplyr","tidyr")) %dopar% SIH_frag()
-  for(r in 1:reps){
-    Sim_data<-Sim_data_parallel[[r]]
-    Meta_dyn_reps[Meta_dyn_reps$Rep==r,]<-Sim_data[[1]]
-    SIH_data_reps[SIH_data_reps$Rep==r,]<-Sim_data[[2]]
-    Component_data_reps[Component_data_reps$Rep==r,]<-Sim_data[[3]]
-  }  
-  
-  save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
+          }
+          N<-N[-patch.delete,]
+          R<-R[-patch.delete]
+          N0<-N0[-patch.delete,]
+          R0<-R0[-patch.delete]
+        }  
+      } 
+      
+      L_Bmass<-colMeans(apply(Abund,3,rowSums),na.rm=T)
+      L_Bmass_sep<-data.frame(t(apply(Abund,3,rowSums)))
+      R_Bmass<-apply(Abund,3,sum,na.rm=T)
+      R_SR<-colSums(apply(Abund,3,colSums, na.rm=T)>0)
+      L_SR<-colMeans(apply((Abund>0),3,rowSums),na.rm=T)
+      L_Occ<-colMeans(apply((Abund>0),3,rowSums)>0,na.rm=T)
+      
+      cv<-function(x){sd(x,na.rm=T)/mean(x,na.rm=T)}
+      
+      L_Bmass_sep[L_Bmass_sep==0]<-NA
+      
+      CVdf<-cbind(L_Bmass_sep,data.frame(R_Bmass=R_Bmass,Patches=rep(numCom:1,each=drop_length/2000))) %>%
+        group_by(Patches) %>%
+        summarise_each(funs(cv))
+      L_CV<-rowMeans(CVdf[,2:101],na.rm=T)
+      R_CV<-CVdf$R_Bmass
+      
+      SIH_data_means<-data.frame(R_SR=R_SR,L_SR=L_SR,L_Bmass=L_Bmass,L_Occ=L_Occ,Patches=numCom-colMeans(apply(is.na(Abund),3,colSums))) %>%
+        group_by(Patches) %>%
+        summarise_each(funs(mean(.,na.rm=T)))
+      SIH_data_means$R_CV<-R_CV
+      SIH_data_means$L_CV<-L_CV
+    
+      Component_data_means<-data.frame(Patches=numCom-colMeans(apply(is.na(Abund),3,colSums)),Component_num=Components$Number_components,Component_size=Components$Component_size,Component_range=Components$Component_envt_range)%>%
+        group_by(Patches) %>%
+        summarise_each(funs(mean(.,na.rm=T)))
+      
+      mean.df<-summarise(group_by(Meta_dyn,Patches),Species_sorting=mean(Species_sorting,na.rm=T),Mass_effects=mean(Mass_effects,na.rm=T),Base_growth=mean(Base_growth,na.rm=T))
+
+      SIH.df_temp<-cbind(SIH_data_means,Component_data_means[,-1],mean.df[,-1])
+      SIH.df_temp$Dispersal<-disp
+      SIH.df_temp$Scenario<-removeV[j]
+      if(i==1 & j ==1){
+        SIH.df<-SIH.df_temp
+      } else {
+        SIH.df<-rbind(SIH.df,SIH.df_temp)
+      }
+    }}
+  return(SIH.df)
+}
+
+#run simulation function in parallel
+Sim_data_parallel<-foreach(r = 1:reps,.packages=c("igraph","dplyr","tidyr")) %dopar% SIH_frag()
+
+stopCluster(cl)
+
+Sim_data<-do.call("rbind",Sim_data_parallel)
+
+Sim_data_long<-gather(Sim_data,key = Response,value = Value,L_SR:Mass_effects)
+
+SIH_means<-Sim_data_long%>%
+  group_by(Dispersal,Response)%>%
+  summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T)))
+
+
+
+save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
