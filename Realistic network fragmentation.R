@@ -1,9 +1,11 @@
-require(igraph)
-require(dplyr)
-require(ggplot2)
-require(tidyr)
-require(doParallel)
-require(foreach)
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggExtra)
+library(RColorBrewer)
+library(doParallel)
+library(foreach)
 
 #set up parallel####
 cl<-makeCluster(detectCores())
@@ -277,6 +279,105 @@ SIH_means<-Sim_data_long%>%
   group_by(Dispersal,Response)%>%
   summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T)))
 
+save(SIH_means,file="Fragmentation.RData")
+
+SIH_means$Scenario<-factor(SIH_means$Scenario,levels=c("Min betweenness", "Random", "Max betweenness"),ordered = T)
+
+#Figures####
+options(scipen=9)
+#Figure 3####
+Components.df<-filter(SIH_means,Response == "Component_num"|
+                        Response == "Component_range"|
+                        Response == "Component_size",
+                      Dispersal==0.005)
+
+Components.df$Response["Component_num"]<-"Component number"
+Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_num", "Component number")
+Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_size", "Component size")
+Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_range", "Component range")
+
+ggplot(Components.df,aes(x=Patches,y=Mean, color=Scenario, fill=Scenario))+
+  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.3, color=NA)+
+  geom_line(size=1.2)+
+  facet_grid(Response~.,scale='free')+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
+  xlim(100,0)+
+  theme_bw(base_size = 16)+
+  ylab("Mean value")+
+  theme(legend.position="top")+
+  removeGrid()
+ggsave("./Figures/3. Network components with fragmentation.pdf",width = 6,height = 8.5)
+
+#Figure 4####
+SIH_trad.df<-filter(SIH_means,Response == "R_SR"|
+                      Response == "L_SR"|
+                      Response == "L_Occ"|
+                      Response == "L_Bmass"|
+                      Response == "R_CV"|
+                      Response == "L_CV")
+
+SIH_trad.df$Response<-factor(SIH_trad.df$Response,levels=c("R_SR","L_SR","L_Occ","L_Bmass","R_CV","L_CV"),ordered=T)
+SIH_trad.df$cleanNames<-factor(SIH_trad.df$Response)
+levels(SIH_trad.df$cleanNames)<-c("Regional\nspecies\nrichness","Local\nspecies\nrichness","Local\noccupancy","Local\nbiomass","Regional\nbiomass\nvariability","Local\nbiomass\nvariability")
+
+SIH_trad.df$Dispersal_text<-paste("Dispersal =",SIH_trad.df$Dispersal)
 
 
-save(Meta_dyn_reps,Component_data_reps,SIH_data_reps,file="Fragmentation.RData")
+ggplot(SIH_trad.df,aes(x=Patches,y=Mean, color=Scenario, fill=Scenario))+
+  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.2)+
+  geom_line(size=1.2)+
+  facet_grid(cleanNames~Dispersal_text,scale='free_y')+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
+  xlim(100,0)+
+  theme_bw(base_size = 16)+
+  theme(legend.position="top")+
+  ylab("Mean value")+
+  removeGrid()
+ggsave("./Figures/4. Diversity and biomass with fragmentation.pdf",width = 11,height = 8.5)
+
+#Figure 5####
+BEF_curve.df<-filter(SIH_trad.df,Response == "L_Bmass" | Response == "L_SR")
+BEF_curve.df<-spread(BEF_curve.df[,-c(6:8)],key = Response,value = Mean)
+
+
+ggplot(BEF_curve.df,aes(x=L_SR,y=L_Bmass, color=Scenario, fill=Scenario))+
+  #geom_ribbon(aes(ymin = SD_min, ymax = SD_max),alpha=0.2)+
+  geom_path(size=1.2)+
+  facet_grid(.~Dispersal_text)+
+  scale_shape_manual(values = c(25,19,24),name="")+
+  scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
+  scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
+  theme_bw(base_size = 16)+
+  theme(legend.position="top")+
+  geom_point(data=filter(BEF_curve.df,Patches==20),aes(x=L_SR,y=L_Bmass, color=Scenario,shape=Scenario,fill=Scenario),size=3)+
+  xlab("Local species richness")+
+  ylab("Local biomass")+
+  removeGrid()
+ggsave("./Figures/5. BEF curves.pdf", width = 11,height = 5)
+
+
+#Figure 6####
+Dynamics<-filter(SIH_means,Response == "Base_growth"|
+                      Response == "Species_sorting"|
+                      Response == "Mass_effects")
+
+Dynamics$Response<-factor(Dynamics$Response,levels=c("Base_growth","Species_sorting","Mass_effects"),ordered = T)
+levels(Dynamics$Response)<-c("Base growth","Species sorting","Mass effects")
+Dynamics$Dispersal<-paste("Dispersal = ",Dynamics$Dispersal,sep="")
+
+
+ggplot(Dynamics,aes(x=Patches,y=Mean, color=Response, fill=Response))+
+  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.2,color=NA)+
+  geom_line(size=1.2)+
+  facet_grid(Scenario~Dispersal)+
+  scale_color_manual(values = brewer.pal(3,"Dark2")[c(2,1,3)],name="")+
+  scale_fill_manual(values = brewer.pal(3,"Dark2")[c(2,1,3)],name="")+
+  xlim(100,0)+
+  theme_bw(base_size = 16)+
+  scale_y_continuous(breaks=seq(0,1,length=3))+
+  theme(legend.position="top")+
+  ylab("Proportion of biomass production")+
+  removeGrid()
+ggsave("./Figures/6. SIH dynamics with fragmentation.pdf",width = 11,height = 8.5)

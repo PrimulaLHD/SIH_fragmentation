@@ -1,9 +1,11 @@
-require(igraph)
-require(dplyr)
-require(ggplot2)
-require(tidyr)
-require(doParallel)
-require(foreach)
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(RColorBrewer)
+library(ggExtra)
+library(doParallel)
+library(foreach)
 
 SIH_function<-function(dispV=NA,species=15,numCom=100){
   #Constants####
@@ -179,13 +181,12 @@ Meta_dyn<-filter(SIH_means,Response == "Base_growth" |
 Meta_dyn$Response<-factor(Meta_dyn$Response,levels =c("Base_growth","Species_sorting", "Mass_effects"),ordered = T)
 
 
-library(RColorBrewer)
 ggplot(Meta_dyn,aes(x=Dispersal,y=Mean,color=Response, fill=Response))+
   geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.3,color=NA)+
   geom_line(size=1.5)+
   theme_bw(base_size = 15)+
-  scale_color_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
-  scale_fill_manual(values = brewer.pal(3,"Set1")[c(1,3,2)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
+  scale_color_manual(values = brewer.pal(3,"Dark2")[c(2,1,3)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
+  scale_fill_manual(values = brewer.pal(3,"Dark2")[c(2,1,3)],name="",labels=c("Base growth","Species sorting","Mass effects"))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
   scale_x_log10(breaks=c(0.0001,0.001,0.01,0.1,1),labels=c("0.0001","0.001","0.01","0.1","1"))+
   scale_y_continuous(breaks=seq(0,1,length=5))+
