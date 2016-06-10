@@ -7,6 +7,8 @@ library(ggExtra)
 library(doParallel)
 library(foreach)
 
+load("Dispersal matrices.RData")
+
 SIH_function<-function(dispV=NA,species=10,numCom=100){
   #Constants####
   #N<- matrix(10,ncol=species,nrow=numCom) # Community x Species abundance matrix
@@ -26,53 +28,16 @@ SIH_function<-function(dispV=NA,species=10,numCom=100){
   eOptimum<-1-seq(0,eAMP, by=eAMP/(species-1)) #species environmental optima
   
   #network####
-  success<-F
-  while(!success){
-    landscape<-round(data.frame(x = runif(numCom, min = 1, max = 1000), y = runif(numCom, min = 1, max = 1000)))
-    distance_mat1<-as.matrix(dist(landscape,method = "euclidean",diag = T,upper=T))
-    
-    distance_mat<-1*(distance_mat1<200)
-    diag(distance_mat)<-0
-    connections<-distance_mat
-    distance_mat[upper.tri(distance_mat)]<-0
-    
-    graph<-as.undirected(graph.adjacency(distance_mat))
-    graph<-set.vertex.attribute(graph,"x coordinate",value=landscape$x)
-    graph<-set.vertex.attribute(graph,"y coordinate",value=landscape$y)
-    graph<-set.edge.attribute(graph,"weight",value=distance_mat1[cbind(as.numeric(get.edgelist(graph)[,1]),  as.numeric(get.edgelist(graph)[,2]))])
-    
-    
-    if(components(graph)$no == 1){success<-T}}
+  name<-paste("Network",r,sep="_")
+  graph<-net_list[[name]]
+  
+  name<-paste("Landscape",r,sep="_")
+  landscape<-landscape_list[[name]]
   
   envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*1+1+(landscape$y)*2*pi/1000)+1)
   
-  plot.igraph(graph,layout=as.matrix(landscape), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
-  
-  CS_exe<-'C:/"Program Files"/Circuitscape/cs_run.exe'
-  
-  #dispersal conditions####
-  graph_circuit<-data.frame(get.edgelist(graph), E(graph)$weight)
-  write.table(graph_circuit, paste("./Circuits/network_graph",r,".txt", sep="_"), row.names = FALSE, col.names = FALSE, quote = FALSE)
-  write.table(V(graph)$name, paste("./Circuits/network_focal_nodes",r,".txt", sep="_"), row.names = FALSE, col.names = FALSE, quote = FALSE)
-  CS_ini <- c("[circuitscape options]",            
-              "data_type = network",
-              "scenario = pairwise",
-              paste(c("point_file =",
-                      "habitat_file =",
-                      "output_file ="),
-                    c(paste("./Circuits/network_focal_nodes",r,".txt", sep="_"),
-                      paste("./Circuits/network_graph",r,".txt", sep="_"),
-                      paste("./Circuits/CS",r,".out",sep="_"))))
-  
-  writeLines(CS_ini, paste("./Circuits/my_ini",r,".ini", sep="_"))
-  CS_run <- paste(CS_exe, paste("./Circuits/my_ini",r, ".ini", sep="_")) # Make the cmd
-  system(CS_run)
-  d <- read.table(paste("./Circuits/CS",r,"_resistances.out",sep="_"), row.names=1,header=TRUE)
-  #d<-shortest.paths(graph_run, mode="all", weights=NULL, algorithm="automatic")
-  #d_exp<-exp(-0.002*d) - diag(nrow(d))  #dispersal kernel function of the d matrix
-  d_exp<-exp(-0.05*d) - diag(nrow(d))
-  dispersal_matrix <- apply(d_exp, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
-  rownames(dispersal_matrix)<-1:numCom
+  name<-paste("DM",r,1,100,sep="_")
+  dispersal_matrix<-dispersal_mats[[name]]
   
   calc.immigration <- function(N,a,dispersal_matrix) dispersal_matrix%*%N*rep(a,each=numCom)
   
@@ -167,11 +132,11 @@ vect<-c(0.0001,0.00015,0.00025,0.0005,0.00075)
 dispV<-c(vect,vect*10,vect*100,vect*1000,1)
 dispV<-dispV[-c(17:20)]
 
-
-reps<-16
+reps<-100
 
 #make parallel####
-cl<-makeCluster(detectCores())
+detectCores()
+cl<-makeCluster(34)
 registerDoParallel(cl)
 getDoParWorkers()
 
@@ -184,7 +149,7 @@ Sim_data_long<-gather(Sim_data,key = Response,value = Value,L_SR:Mass_effects)
 
 SIH_means<-Sim_data_long%>%
   group_by(Dispersal,Response)%>%
-  summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T)))
+  summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T),U95=quantile(.,probs=0.975,na.rm=T),L95=quantile(.,probs=0.025,na.rm=T)))
 
 
 Meta.dyn.df<-filter(SIH_means,Response=="Base_growth" |
@@ -206,6 +171,6 @@ ggplot(Meta.dyn.df,aes(x=Dispersal,y=Mean,color=Response, fill=Response))+
   ylab("Propotion of biomass production")+
   theme(legend.justification=c(1,0),legend.position=c(1,0.5))+
   geom_vline(xintercept = c(0.0005,0.005,0.015), linetype=2)
-
+ggsave("./Figures/2. Metacommunity dynamics.pdf", width = 8, height = 6)
 
 save(SIH_means,file="Meta_dynamics.RData")
