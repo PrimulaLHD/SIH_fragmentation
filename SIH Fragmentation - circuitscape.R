@@ -7,63 +7,52 @@ library(RColorBrewer)
 library(doParallel)
 library(foreach)
 
+load("Dispersal matrices.RData")
+
 #set up parallel####
-cl<-makeCluster(detectCores())
+detectCores()
+cl<-makeCluster(32,outfile="")
 registerDoParallel(cl)
 getDoParWorkers()
 
 #simulation code####
-reps<-100
-print.plots<-T # set this to true if you want to see the network as the sim runs - it makes it slower
-
-nSpecies<-10
-numCom<-100
-dispV<-c(0.0005,0.005,0.015)
-
-rInput<-150 #resource input
-rLoss<-10 #resource loss 
-eff<-0.2 #conversion efficiency
-mort<-0.2 #mortality
-Ext<- 0.1 #extinction Threshold
-
-ePeriod<-40000#40000 #period of env sinusoidal fluctuations
-eAMP<-1 #amplitude of envrionment sinusoidal fluctuations
-
-drop_length<-ePeriod
-
-Tmax<-100000+drop_length*(numCom-0) #number of time steps in Sim
-Tdata<- seq(1, Tmax)
-DT<- 0.08 # % size of discrete "time steps"
-sampleV<-seq(102000,Tmax,by=2000)
-removeV<-c("Max betweenness","Min betweenness","Random")
-
-eOptimum<-1-seq(0,eAMP, by=eAMP/(nSpecies-1)) #species environmental optima
+reps<-32
 
 #the simulation function####  
-SIH_frag<-function(){
+SIH_frag<-function(numCom=100,nSpecies=10){
+  dispV<-c(0.0005,0.005,0.015)
+  print.plots<-F# set this to true if you want to see the network as the sim runs - it makes it slower
+  
+  
+  rInput<-150 #resource input
+  rLoss<-10 #resource loss 
+  eff<-0.2 #conversion efficiency
+  mort<-0.2 #mortality
+  Ext<- 0.1 #extinction Threshold
+  
+  ePeriod<-40000#40000 #period of env sinusoidal fluctuations
+  eAMP<-1 #amplitude of envrionment sinusoidal fluctuations
+  
+  drop_length<-ePeriod
+  
+  Tmax<-100000+drop_length*(numCom-0) #number of time steps in Sim
+  Tdata<- seq(1, Tmax)
+  DT<- 0.08 # % size of discrete "time steps"
+  sampleV<-seq(102000,Tmax,by=2000)
+  removeV<-c("Max betweenness","Min betweenness","Random")
+  
+  eOptimum<-1-seq(0,eAMP, by=eAMP/(nSpecies-1)) #species environmental optima
+  
   #network####
-  success<-F
-  while(!success){
-    landscape<-round(data.frame(x = runif(numCom, min = 1, max = 1000), y = runif(numCom, min = 1, max = 1000)))
-    distance_mat1<-as.matrix(dist(landscape,method = "euclidean",diag = T,upper=T))
-    
-    distance_mat<-1*(distance_mat1<200)
-    diag(distance_mat)<-0
-    connections<-distance_mat
-    distance_mat[upper.tri(distance_mat)]<-0
-    
-    graph<-as.undirected(graph.adjacency(distance_mat))
-    graph<-set.vertex.attribute(graph,"x coordinate",value=landscape$x)
-    graph<-set.vertex.attribute(graph,"y coordinate",value=landscape$y)
-    graph<-set.edge.attribute(graph,"weight",value=distance_mat1[cbind(as.numeric(get.edgelist(graph)[,1]),  as.numeric(get.edgelist(graph)[,2]))])
-    
-    
-    if(components(graph)$no == 1){success<-T}}
+  name<-paste("Network",r,sep="_")
+  graph<-net_list[[name]]
+  
+  name<-paste("Landscape",r,sep="_")
+  landscape<-landscape_list[[name]]
   
   envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*1+1+(landscape$y)*2*pi/1000)+1)
   
-  plot.igraph(graph,layout=as.matrix(landscape), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
-  
+  #plot.igraph(graph,layout=as.matrix(landscape), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
   
   for(i in 1:length(dispV)){
     disp<-dispV[i]
@@ -75,37 +64,36 @@ SIH_frag<-function(){
     for(j in 1:3){
       landscape_run<-landscape
       graph_run<-graph
-      d<-shortest.paths(graph_run, mode="all", weights=NULL, algorithm="automatic")
-      d_exp<-exp(-0.002*d) - diag(nrow(d))  #dispersal kernel function of the d matrix
-      dispersal_matrix <- apply(d_exp, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
       
-      Prod<-array(NA,dim=c(numCom,nSpecies,length(sampleV)))
-      Abund<-Prod
+      name<-paste("DM",r,j,100,sep="_")
+      dispersal_matrix<-dispersal_mats[[name]]
       
-      N0<-N<- matrix(10,ncol=nSpecies,nrow=numCom) # Community x Species abundance matrix
-      R0<-R<-rep(10*(nSpecies/10),numCom)
+      Abund<-array(NA,dim=c(numCom,nSpecies,length(sampleV)))
+      
+      N0<-N<- matrix(10,ncol=nSpecies,nrow=numCom,dimnames = list(1:numCom,1:nSpecies)) # Community x Species abundance matrix
+      R0<-R<-matrix(rep(10*(nSpecies/10),numCom),nrow=numCom,ncol = 1,dimnames=list(1:numCom,"R"))
       
       Meta_dyn<-data.frame(Species_sorting=rep(NA,length(sampleV)),Mass_effects=NA,Base_growth=NA,Patches=NA)
       Species_data<-array(NA,dim=c(length(sampleV),nSpecies,2),dimnames = list(sampleV,1:nSpecies,c("Abundance","Occupancy")))
       Components<-data.frame(Number_components=rep(NA, length(sampleV)),Component_size=NA,Component_envt_range=NA)
       
+      
       for(TS in 1:Tmax){
         #print(TS)
         Immigrants<-calc.immigration(N,disp,dispersal_matrix)
         envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*TS+1+(landscape_run$y)*2*pi/1000)+1)
-        #plot.igraph(graph_run,layout=as.matrix(landscape), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=10)
-        if(is.null(rownames(dispersal_matrix))){
+        if(vcount(graph_run)==1){
           consume <- 0.1*(1.5-abs(sapply(eOptimum,'-',envt.v)))
-          Nt <- N*(1+DT*(eff*R*consume - disp - mort)) + DT*Immigrants #abundance step
+          Nt <- N*(1+DT*(eff*c(R)*consume - disp - mort)) + DT*Immigrants #abundance step
           Rt <- DT*rInput+R*(1-DT*(rLoss + sum(consume*N))) #resource step    
           
-          Nt0 <- N0*(1+DT*(eff*R0*consume - mort))
+          Nt0 <- N0*(1+DT*(eff*c(R0)*consume - mort))
           Rt0 <- DT*rInput+R0*(1-DT*(rLoss + sum(consume*N0)))} else { #resource step  
             consume <- 0.1*(1.5-abs(sapply(eOptimum,'-',envt.v)))
-            Nt <- N*(1+DT*(eff*R*consume - disp - mort)) + DT*Immigrants #abundance step
+            Nt <- N*(1+DT*(eff*c(R)*consume - disp - mort)) + DT*Immigrants #abundance step
             Rt <- DT*rInput+R*(1-DT*(rLoss + rowSums(consume*N))) #resource step    
             
-            Nt0 <- N0*(1+DT*(eff*R0*consume - mort))
+            Nt0 <- N0*(1+DT*(eff*c(R0)*consume - mort))
             Rt0 <- DT*rInput+R0*(1-DT*(rLoss + rowSums(consume*N0)))
           }
         
@@ -117,13 +105,12 @@ SIH_frag<-function(){
           envt.ranges<-sapply(unique(members),function(x){range(envt.v[members==x])})
           Components$Component_envt_range[sample_id]<-mean(envt.ranges[2,]-envt.ranges[1,])
           
-          if(is.null(rownames(N))){
-            Prod[as.numeric(names(dispersal_matrix)),,sample_id] <- eff*consume*R*N
-            Abund[as.numeric(names(dispersal_matrix)),,sample_id] <- N
+          if(vcount(graph_run)==1){
+            Abund[as.numeric(rownames(landscape_run)),,sample_id] <- N
             
-            fitness<-((N*(1+DT*(eff*R*consume - disp - mort)))-N)*(Nt>Ext)
-            fitness_w_disp<-((N*(1+DT*(eff*R*consume - disp - mort)) + DT*Immigrants)-N)*(Nt>Ext)
-            fitness0<-(N0*(1+DT*(eff*R0*consume - mort))-N0)*(Nt0>Ext)
+            fitness<-((N*(1+DT*(eff*c(R)*consume - disp - mort)))-N)*(Nt>Ext)
+            fitness_w_disp<-((N*(1+DT*(eff*c(R)*consume - disp - mort)) + DT*Immigrants)-N)*(Nt>Ext)
+            fitness0<-(N0*(1+DT*(eff*c(R0)*consume - mort))-N0)*(Nt0>Ext)
             home_prod<-mean(rowSums(fitness_w_disp*(fitness>0)))
             disp_prod_ME<-mean(rowSums(fitness_w_disp*(fitness<0 & fitness_w_disp>=0)))
             
@@ -154,12 +141,11 @@ SIH_frag<-function(){
             Species_data[sample_id,,1]<-N
             Species_data[sample_id,,2]<-N>0
           } else{
-            Prod[as.numeric(rownames(N)),,sample_id] <- eff*consume*R*N
             Abund[as.numeric(rownames(N)),,sample_id] <- N
             
-            fitness<-((N*(1+DT*(eff*R*consume - disp - mort)))-N)*(Nt>Ext)
-            fitness_w_disp<-((N*(1+DT*(eff*R*consume - disp - mort)) + DT*Immigrants)-N)*(Nt>Ext)
-            fitness0<-(N0*(1+DT*(eff*R0*consume - mort))-N0)*(Nt0>Ext)
+            fitness<-((N*(1+DT*(eff*c(R)*consume - disp - mort)))-N)*(Nt>Ext)
+            fitness_w_disp<-((N*(1+DT*(eff*c(R)*consume - disp - mort)) + DT*Immigrants)-N)*(Nt>Ext)
+            fitness0<-(N0*(1+DT*(eff*c(R0)*consume - mort))-N0)*(Nt0>Ext)
             home_prod<-mean(rowSums(fitness_w_disp*(fitness>0)))
             disp_prod_ME<-mean(rowSums(fitness_w_disp*(fitness<0 & fitness_w_disp>=0)))
             
@@ -198,30 +184,24 @@ SIH_frag<-function(){
         N0 <- Nt0 * (Nt0>Ext) # set to 0 if below extinction threshold
         R0 <- Rt0
         
-        if(max(TS==seq(100000+drop_length,Tmax-1,by=drop_length))){
-          if(j==1){btw<-betweenness(graph_run)
-          if(sum(btw)==0){
-            patch.delete<-order(degree(graph_run),decreasing = T)[1]
-          } else{patch.delete<-order(btw,decreasing = T)[1] }
-          } else{
-            if(j==2){patch.delete<-order(betweenness(graph_run),decreasing=F)[1]} else{
-              patch.delete<-sample(nrow(N),1)}}    
-          graph_run<-delete.vertices(graph_run,patch.delete)
-          landscape_run<-landscape_run[-patch.delete,]
+        if(max(TS==seq(100000+drop_length,Tmax-1,by=drop_length))==1){
+          dropV<-seq(100000+drop_length,Tmax-1,by=drop_length)
           
-          d<-shortest.paths(graph_run, mode="all", weights=NULL, algorithm="automatic")
-          d_exp<-exp(-0.002*d) - diag(nrow(d))  #dispersal kernel function of the d matrix
-          dispersal_matrix <- apply(d_exp, 1, function(x) x/sum(x)) #divides the d_exp matrix by the column sums to make it a conservative dispersal matrix
-          dispersal_matrix[is.nan(dispersal_matrix)]<-0
+          name<-paste("DM",r,j,100-which(dropV==TS),sep="_")
+          dispersal_matrix<-dispersal_mats[[name]]
+          
+          landscape_run<-landscape[rownames(dispersal_matrix),]
+          graph_run<-induced_subgraph(graph,rownames(dispersal_matrix))
           
           envt.v<-0.5*eAMP*(sin((2*pi/ePeriod)*TS+1+(landscape_run$y)*2*pi/1000)+1)
           if(print.plots==T){
             plot.igraph(graph_run,layout=as.matrix(landscape_run), vertex.color=heat.colors(100)[1+(envt.v*99)], vertex.size=5000,vertex.label=NA, rescale=F, ylim=c(0,1000),xlim=c(0,1000))
           }
-          N<-N[-patch.delete,]
-          R<-R[-patch.delete]
-          N0<-N0[-patch.delete,]
-          R0<-R0[-patch.delete]
+          
+          N<-N[rownames(dispersal_matrix),]
+          R<-matrix(R[rownames(dispersal_matrix),],ncol = 1,dimnames = list(rownames(dispersal_matrix),"R"))
+          N0<-N0[rownames(dispersal_matrix),]
+          R0<-matrix(R0[rownames(dispersal_matrix),],ncol = 1,dimnames = list(rownames(dispersal_matrix),"R"))
         }  
       } 
       
@@ -247,13 +227,13 @@ SIH_frag<-function(){
         summarise_each(funs(mean(.,na.rm=T)))
       SIH_data_means$R_CV<-R_CV
       SIH_data_means$L_CV<-L_CV
-    
+      
       Component_data_means<-data.frame(Patches=numCom-colMeans(apply(is.na(Abund),3,colSums)),Component_num=Components$Number_components,Component_size=Components$Component_size,Component_range=Components$Component_envt_range)%>%
         group_by(Patches) %>%
         summarise_each(funs(mean(.,na.rm=T)))
       
       mean.df<-summarise(group_by(Meta_dyn,Patches),Species_sorting=mean(Species_sorting,na.rm=T),Mass_effects=mean(Mass_effects,na.rm=T),Base_growth=mean(Base_growth,na.rm=T))
-
+      
       SIH.df_temp<-cbind(SIH_data_means,Component_data_means[,-1],mean.df[,-1])
       SIH.df_temp$Dispersal<-disp
       SIH.df_temp$Scenario<-removeV[j]
@@ -267,17 +247,19 @@ SIH_frag<-function(){
 }
 
 #run simulation function in parallel
-Sim_data_parallel<-foreach(r = 1:reps,.packages=c("igraph","dplyr","tidyr")) %dopar% SIH_frag()
+Sim_data_parallel<-foreach(r = 37:100,.packages=c("igraph","dplyr","tidyr")) %dopar% SIH_frag()
 
 stopCluster(cl)
 
+save(Sim_data_parallel,file = "Savedata2.RData")
+
 Sim_data<-do.call("rbind",Sim_data_parallel)
 
-Sim_data_long<-gather(Sim_data,key = Response,value = Value,L_SR:Mass_effects)
+Sim_data_long<-gather(Sim_data,key = Response,value = Value,R_SR:Base_growth)
 
 SIH_means<-Sim_data_long%>%
-  group_by(Dispersal,Response)%>%
-  summarise_each(funs(Mean=mean(.,na.rm=T),Lower=quantile(.,probs = 0.25,na.rm=T),Upper=quantile(.,probs=0.75,na.rm=T)))
+  group_by(Dispersal,Response,Scenario,Patches)%>%
+  summarise(Mean=mean(Value,na.rm=T),Lower=quantile(Value,probs = c(0.025),na.rm=T),Upper=quantile(Value,probs=c(0.975),na.rm=T),LQ=quantile(Value,probs=0.25,na.rm=T),UQ=quantile(Value,probs=0.75,na.rm=T),Median=median(Value,na.rm=T))
 
 save(SIH_means,file="Fragmentation.RData")
 
@@ -289,15 +271,14 @@ options(scipen=9)
 Components.df<-filter(SIH_means,Response == "Component_num"|
                         Response == "Component_range"|
                         Response == "Component_size",
-                      Dispersal==0.005)
+                      Dispersal==0.0005)
 
-Components.df$Response["Component_num"]<-"Component number"
 Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_num", "Component number")
 Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_size", "Component size")
 Components.df$Response<-replace(Components.df$Response,Components.df$Response=="Component_range", "Component range")
 
 ggplot(Components.df,aes(x=Patches,y=Mean, color=Scenario, fill=Scenario))+
-  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.3, color=NA)+
+  geom_ribbon(aes(ymin = LQ, ymax = UQ),alpha=0.3, color=NA)+
   geom_line(size=1.2)+
   facet_grid(Response~.,scale='free')+
   scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
@@ -323,9 +304,8 @@ levels(SIH_trad.df$cleanNames)<-c("Regional\nspecies\nrichness","Local\nspecies\
 
 SIH_trad.df$Dispersal_text<-paste("Dispersal =",SIH_trad.df$Dispersal)
 
-
 ggplot(SIH_trad.df,aes(x=Patches,y=Mean, color=Scenario, fill=Scenario))+
-  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.2)+
+  geom_ribbon(aes(ymin = LQ, ymax = UQ),alpha=0.2)+
   geom_line(size=1.2)+
   facet_grid(cleanNames~Dispersal_text,scale='free_y')+
   scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
@@ -338,20 +318,20 @@ ggplot(SIH_trad.df,aes(x=Patches,y=Mean, color=Scenario, fill=Scenario))+
 ggsave("./Figures/4. Diversity and biomass with fragmentation.pdf",width = 11,height = 8.5)
 
 #Figure 5####
-BEF_curve.df<-filter(SIH_trad.df,Response == "L_Bmass" | Response == "L_SR")
-BEF_curve.df<-spread(BEF_curve.df[,-c(6:8)],key = Response,value = Mean)
+BE_Fcurve.df<-ungroup(filter(SIH_trad.df,Response == "L_Bmass" | Response == "L_SR"))
+BEF_curve.df<-spread(BE_Fcurve.df[,1:5],key = Response,value = Mean)
 
 
 ggplot(BEF_curve.df,aes(x=L_SR,y=L_Bmass, color=Scenario, fill=Scenario))+
   #geom_ribbon(aes(ymin = SD_min, ymax = SD_max),alpha=0.2)+
   geom_path(size=1.2)+
-  facet_grid(.~Dispersal_text)+
+  facet_grid(.~Dispersal)+
   scale_shape_manual(values = c(25,19,24),name="")+
   scale_color_manual(values = c("dodgerblue1","black","red"),name="")+
   scale_fill_manual(values = c("dodgerblue1","black","red"),name="")+
   theme_bw(base_size = 16)+
   theme(legend.position="top")+
-  geom_point(data=filter(BEF_curve.df,Patches==20),aes(x=L_SR,y=L_Bmass, color=Scenario,shape=Scenario,fill=Scenario),size=3)+
+  geom_point(data=filter(BEF_curve.df,Patches==70),aes(x=L_SR,y=L_Bmass, color=Scenario,shape=Scenario,fill=Scenario),size=3)+
   xlab("Local species richness")+
   ylab("Local biomass")+
   removeGrid()
@@ -360,8 +340,8 @@ ggsave("./Figures/5. BEF curves.pdf", width = 11,height = 5)
 
 #Figure 6####
 Dynamics<-filter(SIH_means,Response == "Base_growth"|
-                      Response == "Species_sorting"|
-                      Response == "Mass_effects")
+                   Response == "Species_sorting"|
+                   Response == "Mass_effects")
 
 Dynamics$Response<-factor(Dynamics$Response,levels=c("Base_growth","Species_sorting","Mass_effects"),ordered = T)
 levels(Dynamics$Response)<-c("Base growth","Species sorting","Mass effects")
@@ -369,7 +349,7 @@ Dynamics$Dispersal<-paste("Dispersal = ",Dynamics$Dispersal,sep="")
 
 
 ggplot(Dynamics,aes(x=Patches,y=Mean, color=Response, fill=Response))+
-  geom_ribbon(aes(ymin = Lower, ymax = Upper),alpha=0.2,color=NA)+
+  geom_ribbon(aes(ymin = LQ, ymax = UQ),alpha=0.2,color=NA)+
   geom_line(size=1.2)+
   facet_grid(Scenario~Dispersal)+
   scale_color_manual(values = brewer.pal(3,"Dark2")[c(2,1,3)],name="")+
